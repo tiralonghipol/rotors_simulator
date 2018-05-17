@@ -595,7 +595,7 @@
     </xacro:camera_macro>
   </xacro:macro>
 
-  <!-- Macro to add a VI-sensor stereo camera. -->
+  <!-- Macro to add a VI-sensor stereo camera. L8 R8G8B8 -->
   <xacro:macro name="vi_sensor_stereo_camera_macro"
     params="namespace parent_link frame_rate origin_offset_x baseline_y origin_offset_z max_range">
     <xacro:stereo_camera_macro
@@ -606,11 +606,11 @@
       horizontal_fov="1.3962634"
       image_width="752"
       image_height="480"
-      image_format="L8"
+      image_format="R8G8B8"
       min_distance="0.02"
       max_distance="${max_range}"
       noise_mean="0.0"
-      noise_stddev="0.007"
+      noise_stddev="0.001"
       enable_visual="false"
       origin_offset_x="${origin_offset_x}"
       baseline_y="${baseline_y}"
@@ -656,7 +656,7 @@
         <camera>
           <horizontal_fov>2</horizontal_fov>
           <image>
-            <format>L8</format>
+            <format>R8G8B8</format>
             <width>640</width>
             <height>480</height>
           </image>
