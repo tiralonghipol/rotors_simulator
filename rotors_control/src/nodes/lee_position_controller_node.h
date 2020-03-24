@@ -26,6 +26,7 @@
 #include <stdio.h>
 
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <mav_msgs/Actuators.h>
 #include <mav_msgs/AttitudeThrust.h>
 #include <mav_msgs/eigen_mav_msgs.h>
@@ -59,6 +60,7 @@ class LeePositionControllerNode {
   ros::Subscriber cmd_trajectory_sub_;
   ros::Subscriber cmd_multi_dof_joint_trajectory_sub_;
   ros::Subscriber cmd_pose_sub_;
+  ros::Subscriber cmd_twist_sub_;
   ros::Subscriber odometry_sub_;
 
   ros::Publisher motor_velocity_reference_pub_;
@@ -74,6 +76,9 @@ class LeePositionControllerNode {
 
   void CommandPoseCallback(
       const geometry_msgs::PoseStampedConstPtr& pose_msg);
+
+  void CommandTwistCallback(
+      const geometry_msgs::TwistConstPtr& twist_msg);
 
   void OdometryCallback(const nav_msgs::OdometryConstPtr& odometry_msg);
 };

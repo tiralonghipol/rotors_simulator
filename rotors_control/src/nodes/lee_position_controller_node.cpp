@@ -37,6 +37,9 @@ LeePositionControllerNode::LeePositionControllerNode(
       mav_msgs::default_topics::COMMAND_POSE, 1,
       &LeePositionControllerNode::CommandPoseCallback, this);
 
+  cmd_twist_sub_ = nh_.subscribe("command/twist", 1,
+      &LeePositionControllerNode::CommandTwistCallback, this);      
+
   cmd_multi_dof_joint_trajectory_sub_ = nh_.subscribe(
       mav_msgs::default_topics::COMMAND_TRAJECTORY, 1,
       &LeePositionControllerNode::MultiDofJointTrajectoryCallback, this);
@@ -111,6 +114,15 @@ void LeePositionControllerNode::CommandPoseCallback(
 
   lee_position_controller_.SetTrajectoryPoint(commands_.front());
   commands_.pop_front();
+}
+
+void LeePositionControllerNode::CommandTwistCallback(
+    const geometry_msgs::TwistConstPtr& twist_msg) {
+  // Clear all pending pos commands.
+  command_timer_.stop();
+  commands_.clear();
+  command_waiting_times_.clear();
+  lee_position_controller_.SetTwistCmd(*twist_msg);
 }
 
 void LeePositionControllerNode::MultiDofJointTrajectoryCallback(

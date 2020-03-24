@@ -24,7 +24,8 @@ namespace rotors_control {
 
 LeePositionController::LeePositionController()
     : initialized_params_(false),
-      controller_active_(false) {
+      controller_active_(false),
+      in_pos_ctrl_mode_(true) {
   InitializeParameters();
 }
 
@@ -49,6 +50,7 @@ void LeePositionController::InitializeParameters() {
   angular_acc_to_rotor_velocities_ = controller_parameters_.allocation_matrix_.transpose()
       * (controller_parameters_.allocation_matrix_
       * controller_parameters_.allocation_matrix_.transpose()).inverse() * I;
+  //velocity_error_integral_.setZero();
   initialized_params_ = true;
 }
 
@@ -79,6 +81,7 @@ void LeePositionController::CalculateRotorVelocities(Eigen::VectorXd* rotor_velo
   *rotor_velocities = angular_acc_to_rotor_velocities_ * angular_acceleration_thrust;
   *rotor_velocities = rotor_velocities->cwiseMax(Eigen::VectorXd::Zero(rotor_velocities->rows()));
   *rotor_velocities = rotor_velocities->cwiseSqrt();
+  //ROS_INFO_STREAM_THROTTLE(1, "acc:" << acceleration << ",angular acc:" << angular_acceleration << ",rotor" << *rotor_velocities); 
 }
 
 void LeePositionController::SetOdometry(const EigenOdometry& odometry) {
@@ -89,25 +92,85 @@ void LeePositionController::SetTrajectoryPoint(
     const mav_msgs::EigenTrajectoryPoint& command_trajectory) {
   command_trajectory_ = command_trajectory;
   controller_active_ = true;
+  // if (!in_pos_ctrl_mode_)
+  // {
+  //   velocity_error_integral_.setZero();
+  // }
+  in_pos_ctrl_mode_ = true;
+  ROS_INFO_STREAM("got pose cmd:" << command_trajectory_.position_W);
+}
+
+void LeePositionController::SetTwistCmd(
+    const geometry_msgs::Twist& command_twist) {
+  command_twist_ = command_twist;
+  controller_active_ = true;
+  in_pos_ctrl_mode_ = false;
 }
 
 void LeePositionController::ComputeDesiredAcceleration(Eigen::Vector3d* acceleration) const {
   assert(acceleration);
 
-  Eigen::Vector3d position_error;
-  position_error = odometry_.position - command_trajectory_.position_W;
+  static Eigen::Vector3d velocity_error_integral_(0.0, 0.0, 0.0);
+  double current_time = ros::Time::now().toSec();
+  static double last_time = current_time;
+  double dt = current_time - last_time;
+  last_time = current_time;
+  if (dt > 0.5)
+  {
+    velocity_error_integral_.setZero();
+  }
 
-  // Transform velocity to world frame.
-  const Eigen::Matrix3d R_W_I = odometry_.orientation.toRotationMatrix();
-  Eigen::Vector3d velocity_W =  R_W_I * odometry_.velocity;
-  Eigen::Vector3d velocity_error;
-  velocity_error = velocity_W - command_trajectory_.velocity_W;
+  if (in_pos_ctrl_mode_)
+  {
+    Eigen::Vector3d position_error;
+    position_error = odometry_.position - command_trajectory_.position_W;
 
-  Eigen::Vector3d e_3(Eigen::Vector3d::UnitZ());
+    // Transform velocity to world frame.
+    const Eigen::Matrix3d R_W_I = odometry_.orientation.toRotationMatrix();
+    Eigen::Vector3d velocity_W =  R_W_I * odometry_.velocity;
+    Eigen::Vector3d velocity_error;
+    velocity_error = velocity_W - command_trajectory_.velocity_W;
 
-  *acceleration = (position_error.cwiseProduct(controller_parameters_.position_gain_)
-      + velocity_error.cwiseProduct(controller_parameters_.velocity_gain_)) / vehicle_parameters_.mass_
-      - vehicle_parameters_.gravity_ * e_3 - command_trajectory_.acceleration_W;
+    Eigen::Vector3d e_3(Eigen::Vector3d::UnitZ());
+
+    *acceleration = (position_error.cwiseProduct(controller_parameters_.position_gain_)
+        + velocity_error.cwiseProduct(controller_parameters_.velocity_gain_)) / vehicle_parameters_.mass_
+        - vehicle_parameters_.gravity_ * e_3 - command_trajectory_.acceleration_W;
+    // ROS_INFO_STREAM_THROTTLE(1, "pos ctrl mode:" << *acceleration);    
+  }
+  else // twist control
+  {
+    Eigen::Vector3d velocity_error;
+    Eigen::Vector3d command_linear;
+    // Transform velocity to world frame.
+    const Eigen::Matrix3d R_W_I = odometry_.orientation.toRotationMatrix();
+    double yaw = mav_msgs::yawFromQuaternion(odometry_.orientation);
+    Eigen::Vector3d velocity_W =  R_W_I * odometry_.velocity;    
+    command_linear << command_twist_.linear.x, command_twist_.linear.y, command_twist_.linear.z;
+    command_linear = Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) * command_linear;
+    velocity_error = velocity_W - command_linear;
+    velocity_error_integral_ = velocity_error_integral_ + velocity_error * dt;
+    // limit integral terms
+    double integration_limit = 1.0;
+    for (int i = 0; i < 3; i++)
+    {
+      if (velocity_error_integral_(i) > integration_limit)
+      {
+        velocity_error_integral_(i) = integration_limit;
+      }
+      else if (velocity_error_integral_(i) < -integration_limit)
+      {
+        velocity_error_integral_(i) = -integration_limit;
+      }
+    }
+
+    Eigen::Vector3d e_3(Eigen::Vector3d::UnitZ());
+
+    *acceleration = (velocity_error_integral_.cwiseProduct(controller_parameters_.position_gain_)
+        + velocity_error.cwiseProduct(controller_parameters_.velocity_gain_)) / vehicle_parameters_.mass_
+        - vehicle_parameters_.gravity_ * e_3 - command_trajectory_.acceleration_W;
+    // ROS_INFO_STREAM_THROTTLE(1, "twist ctrl mode:" << *acceleration);     
+  }
 }
 
 // Implementation from the T. Lee et al. paper
@@ -120,7 +183,18 @@ void LeePositionController::ComputeDesiredAngularAcc(const Eigen::Vector3d& acce
 
   // Get the desired rotation matrix.
   Eigen::Vector3d b1_des;
-  double yaw = command_trajectory_.getYaw();
+  double yaw;
+  if (in_pos_ctrl_mode_)
+  {
+    yaw = command_trajectory_.getYaw();
+  }
+  else // twist control mode
+  {
+    //Eigen::Vector3d odom_euler;
+    //mav_msgs::getEulerAnglesFromQuaternion(odometry_.orientation, &odom_euler);
+    //yaw = odom_euler(2);
+    yaw = mav_msgs::yawFromQuaternion(odometry_.orientation);
+  }
   b1_des << cos(yaw), sin(yaw), 0;
 
   Eigen::Vector3d b3_des;
@@ -142,7 +216,14 @@ void LeePositionController::ComputeDesiredAngularAcc(const Eigen::Vector3d& acce
 
   // TODO(burrimi) include angular rate references at some point.
   Eigen::Vector3d angular_rate_des(Eigen::Vector3d::Zero());
-  angular_rate_des[2] = command_trajectory_.getYawRate();
+  if (in_pos_ctrl_mode_)
+  {
+    angular_rate_des[2] = command_trajectory_.getYawRate();
+  }
+  else
+  {
+    angular_rate_des[2] = command_twist_.angular.z;
+  }
 
   Eigen::Vector3d angular_rate_error = odometry_.angular_velocity - R_des.transpose() * R * angular_rate_des;
 
