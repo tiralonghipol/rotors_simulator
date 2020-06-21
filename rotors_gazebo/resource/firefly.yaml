@@ -1,5 +1,5 @@
 # Firefly vehicle parameters
-mass: 1.56779
+mass: 1.536 #1.56779
 inertia: {xx: 0.0347563, xy: 0.0, xz: 0.0, yy: 0.0458929, yz: 0.0, zz: 0.0977}
 
 # angle should be expressed in rad
