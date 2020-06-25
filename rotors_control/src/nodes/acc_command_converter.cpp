@@ -18,6 +18,9 @@ AccCommandConverterNode::AccCommandConverterNode()
 
   ros::NodeHandle pnh("~");
   GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame); 
+  GetRosParameter(pnh, "use_yaw_stabilize", true, &use_yaw_stabilize);
+  GetRosParameter(pnh, "K_yaw", 1.8, &K_yaw_); 
+  GetRosParameter(pnh, "yaw_rate_limit", M_PI/4, &yaw_rate_limit_); 
   GetRosParameter(pnh, "mass", 1.0, &mass); 
   ROS_WARN_STREAM("Mass:" << mass);
   //need to know current yaw angle of the robot if acc vector is expressed in world frame
@@ -74,8 +77,47 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
       rpyrate_thrust_cmd->roll = 0;
     }
 
-    rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z; // calculate from 
-    //#endif
+    // YAW ctrl
+    if (use_yaw_stabilize)
+    {
+      double yaw_error = 0 - current_rpy(2); // maintain zero-degree yaw angle
+
+      if (std::abs(yaw_error) > M_PI)
+      {
+        if (yaw_error > 0.0)
+        {
+          while (yaw_error > M_PI)
+          {
+            yaw_error = yaw_error - 2.0 * M_PI;
+          }
+        }
+        else
+        {
+          while (yaw_error < -M_PI)
+          {
+            yaw_error = yaw_error + 2.0 * M_PI;
+          }
+        }
+      }
+
+      double yaw_rate_cmd = K_yaw_ * yaw_error; // feed-forward yaw_rate cmd
+
+      if (yaw_rate_cmd > yaw_rate_limit_)
+      {
+        yaw_rate_cmd = yaw_rate_limit_;
+      }
+
+      if (yaw_rate_cmd < -yaw_rate_limit_)
+      {
+        yaw_rate_cmd = -yaw_rate_limit_;
+      }
+      rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd; 
+    }   
+    else
+    {
+      rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z;
+    }
+    
     rpyrate_thrust_cmd->thrust.x = 0;
     rpyrate_thrust_cmd->thrust.y = 0;
     // total thrust is the norm of thrust vector

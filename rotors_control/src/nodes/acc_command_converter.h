@@ -28,10 +28,13 @@ class AccCommandConverterNode {
   bool use_vehicle_frame;
   bool receive_first_odom;
   bool receive_first_cmd;
+  bool use_yaw_stabilize;
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
   std::string frame_id;
-
+  double K_yaw_;
+  double yaw_rate_limit_;
+ 
   double mass;
 
   // subscribers
