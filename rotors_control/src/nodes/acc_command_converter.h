@@ -27,7 +27,9 @@ class AccCommandConverterNode {
 
   bool use_vehicle_frame;
   bool receive_first_odom;
+  bool receive_first_cmd;
   mav_msgs::EigenOdometry odometry;
+  mav_msgs::RateThrust rate_thrust_cmd;
   std::string frame_id;
 
   double mass;

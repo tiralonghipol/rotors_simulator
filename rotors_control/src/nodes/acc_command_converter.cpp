@@ -5,7 +5,8 @@
 namespace rotors_control {
 
 AccCommandConverterNode::AccCommandConverterNode() 
-  : receive_first_odom(false)
+  : receive_first_odom(false),
+  receive_first_cmd(false)
 {
   ros::NodeHandle nh;
 
@@ -19,10 +20,8 @@ AccCommandConverterNode::AccCommandConverterNode()
   GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame); 
   GetRosParameter(pnh, "mass", 1.0, &mass); 
   ROS_WARN_STREAM("Mass:" << mass);
-  if (!use_vehicle_frame) // need to know current yaw angle of the robot if acc vector is expressed in world frame
-  {
-    odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 1, &AccCommandConverterNode::OdometryCallback, this);
-  }
+  //need to know current yaw angle of the robot if acc vector is expressed in world frame
+  odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 1, &AccCommandConverterNode::OdometryCallback, this);
 }
 
 AccCommandConverterNode::~AccCommandConverterNode() { }
@@ -33,47 +32,8 @@ void AccCommandConverterNode::RateThrustCallback(
   {
     return;
   }
-  mav_msgs::RollPitchYawrateThrustPtr rpyrate_thrust_cmd(new mav_msgs::RollPitchYawrateThrust);
-  Eigen::Vector3d current_rpy;
-  odometry.getEulerAngles(&current_rpy);
-  // double current_roll = current_rpy(0);
-  // double current_pitch = current_rpy(1);
-  double current_yaw = (use_vehicle_frame)?0.0:current_rpy(2);
-  Eigen::Vector3d thrust_sp;
-  thrust_sp << rate_thrust_msg->thrust.x, rate_thrust_msg->thrust.y, rate_thrust_msg->thrust.z;
-  thrust_sp = (thrust_sp + Eigen::Vector3d(0, 0, kGravity)) * mass;
-  Eigen::Vector3d thrust_norm = thrust_sp.normalized();
-
-  double cphi_stheta = thrust_norm(0) * cos(current_yaw) + thrust_norm(1) * sin(current_yaw);
-  double sphi = thrust_norm(0) * sin(current_yaw) - thrust_norm(1) * cos(current_yaw);
-  double cphi_ctheta = thrust_norm(2);
-  if (cphi_ctheta != 0)
-  {
-    rpyrate_thrust_cmd->pitch = atan2(cphi_stheta, cphi_ctheta);
-    rpyrate_thrust_cmd->roll = atan2(sphi, sqrt(cphi_stheta * cphi_stheta + cphi_ctheta * cphi_ctheta));
-  }
-  else
-  {
-    rpyrate_thrust_cmd->pitch = 0;
-    rpyrate_thrust_cmd->roll = 0;
-  }
-
-  rpyrate_thrust_cmd->yaw_rate = rate_thrust_msg->angular_rates.z; // calculate from 
-  //#endif
-  rpyrate_thrust_cmd->thrust.x = 0;
-  rpyrate_thrust_cmd->thrust.y = 0;
-  // total thrust is the norm of thrust vector
-  rpyrate_thrust_cmd->thrust.z = thrust_sp.norm();
-  
-  // OR cross-product of thrust vector and current z_B axis
-  //rpyrate_thrust_cmd->thrust.z = thrust_sp(0)*(cos(current_roll)*sin(current_pitch)*cos(current_yaw) + sin(current_roll)*sin(current_yaw))
-  //                           + thrust_sp(1)*(cos(current_roll)*sin(current_pitch)*sin(current_yaw) - sin(current_roll)*cos(current_yaw))
-  //                           + thrust_sp(2)*cos(current_roll)*cos(current_pitch);
-
-  rpyrate_thrust_cmd->header.frame_id = frame_id;
-  rpyrate_thrust_cmd->header.stamp = ros::Time::now();
-
-  cmd_roll_pitch_yawrate_thrust_pub_.publish(rpyrate_thrust_cmd);
+  rate_thrust_cmd = *rate_thrust_msg;
+  receive_first_cmd = true;
 }
 
 
@@ -85,7 +45,52 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
     frame_id = odometry_msg->header.frame_id; 
     receive_first_odom = true;
   }
-  mav_msgs::eigenOdometryFromMsg(*odometry_msg, &odometry); 
+  mav_msgs::eigenOdometryFromMsg(*odometry_msg, &odometry);
+  if (receive_first_cmd)
+  {
+    mav_msgs::RateThrust reference = rate_thrust_cmd;
+    mav_msgs::RollPitchYawrateThrustPtr rpyrate_thrust_cmd(new mav_msgs::RollPitchYawrateThrust);
+    Eigen::Vector3d current_rpy;
+    odometry.getEulerAngles(&current_rpy);
+    // double current_roll = current_rpy(0);
+    // double current_pitch = current_rpy(1);
+    double current_yaw = (use_vehicle_frame)?0.0:current_rpy(2);
+    Eigen::Vector3d thrust_sp;
+    thrust_sp << reference.thrust.x, reference.thrust.y, reference.thrust.z;
+    thrust_sp = (thrust_sp + Eigen::Vector3d(0, 0, kGravity)) * mass;
+    Eigen::Vector3d thrust_norm = thrust_sp.normalized();
+
+    double cphi_stheta = thrust_norm(0) * cos(current_yaw) + thrust_norm(1) * sin(current_yaw);
+    double sphi = thrust_norm(0) * sin(current_yaw) - thrust_norm(1) * cos(current_yaw);
+    double cphi_ctheta = thrust_norm(2);
+    if (cphi_ctheta != 0)
+    {
+      rpyrate_thrust_cmd->pitch = atan2(cphi_stheta, cphi_ctheta);
+      rpyrate_thrust_cmd->roll = atan2(sphi, sqrt(cphi_stheta * cphi_stheta + cphi_ctheta * cphi_ctheta));
+    }
+    else
+    {
+      rpyrate_thrust_cmd->pitch = 0;
+      rpyrate_thrust_cmd->roll = 0;
+    }
+
+    rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z; // calculate from 
+    //#endif
+    rpyrate_thrust_cmd->thrust.x = 0;
+    rpyrate_thrust_cmd->thrust.y = 0;
+    // total thrust is the norm of thrust vector
+    rpyrate_thrust_cmd->thrust.z = thrust_sp.norm();
+    
+    // OR cross-product of thrust vector and current z_B axis
+    //rpyrate_thrust_cmd->thrust.z = thrust_sp(0)*(cos(current_roll)*sin(current_pitch)*cos(current_yaw) + sin(current_roll)*sin(current_yaw))
+    //                           + thrust_sp(1)*(cos(current_roll)*sin(current_pitch)*sin(current_yaw) - sin(current_roll)*cos(current_yaw))
+    //                           + thrust_sp(2)*cos(current_roll)*cos(current_pitch);
+
+    rpyrate_thrust_cmd->header.frame_id = frame_id;
+    rpyrate_thrust_cmd->header.stamp = ros::Time::now();
+
+    cmd_roll_pitch_yawrate_thrust_pub_.publish(rpyrate_thrust_cmd);   
+  }
 }
 
 }
