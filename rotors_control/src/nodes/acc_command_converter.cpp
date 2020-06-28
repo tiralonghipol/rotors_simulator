@@ -7,7 +7,7 @@ namespace rotors_control {
 
 AccCommandConverterNode::AccCommandConverterNode() 
   : receive_first_odom(false),
-  receive_first_cmd(false),
+  receive_thrust_cmd(false),
   receive_goal(false)
 {
   ros::NodeHandle nh;
@@ -63,7 +63,8 @@ void AccCommandConverterNode::RateThrustCallback(
     return;
   }
   rate_thrust_cmd = *rate_thrust_msg;
-  receive_first_cmd = true;
+  receive_thrust_cmd = true;
+  receive_goal = false;
 }
 
 // should be in a seperate node
@@ -170,7 +171,7 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
     rate_thrust_cmd_tmp.angular_rates.z = 0.0;
     rate_thrust_cmd = rate_thrust_cmd_tmp;
   }
-  //if (receive_first_cmd)
+  //if (receive_thrust_cmd)
   {
     mav_msgs::RateThrust reference = rate_thrust_cmd;
     mav_msgs::RollPitchYawrateThrustPtr rpyrate_thrust_cmd(new mav_msgs::RollPitchYawrateThrust);

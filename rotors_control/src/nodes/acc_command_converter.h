@@ -29,7 +29,7 @@ class AccCommandConverterNode {
 
   bool use_vehicle_frame;
   bool receive_first_odom;
-  bool receive_first_cmd;
+  bool receive_thrust_cmd;
   bool receive_goal;
   bool use_yaw_stabilize;
   mav_msgs::EigenOdometry odometry;
