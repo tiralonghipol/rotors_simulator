@@ -23,11 +23,14 @@ AccCommandConverterNode::AccCommandConverterNode()
   ros::NodeHandle pnh("~");
   GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame); 
   GetRosParameter(pnh, "use_yaw_stabilize", true, &use_yaw_stabilize);
-  GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x_);
-  GetRosParameter(pnh, "Kp_y", 0.0, &Kp_y_);
-  GetRosParameter(pnh, "Kp_z", 0.0, &Kp_z_);   
-  GetRosParameter(pnh, "K_yaw", 1.8, &K_yaw_); 
-  GetRosParameter(pnh, "yaw_rate_limit", M_PI/4, &yaw_rate_limit_); 
+  GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x);
+  GetRosParameter(pnh, "Kp_y", 0.0, &Kp_y);
+  GetRosParameter(pnh, "Kp_z", 0.0, &Kp_z);
+  GetRosParameter(pnh, "noise_x", 0.0, &noise_x);
+  GetRosParameter(pnh, "noise_y", 0.0, &noise_y);
+  GetRosParameter(pnh, "noise_z", 0.0, &noise_z);     
+  GetRosParameter(pnh, "K_yaw", 1.8, &K_yaw); 
+  GetRosParameter(pnh, "yaw_rate_limit", M_PI/4, &yaw_rate_limit); 
   GetRosParameter(pnh, "mass", 1.0, &mass); 
   ROS_WARN_STREAM("Mass:" << mass);
 
@@ -37,6 +40,14 @@ AccCommandConverterNode::AccCommandConverterNode()
   rate_thrust_cmd.angular_rates.x = 0.0;
   rate_thrust_cmd.angular_rates.y = 0.0;
   rate_thrust_cmd.angular_rates.z = 0.0;
+
+  gen_x = std::mt19937(rd_x());
+  gen_y = std::mt19937(rd_y());
+  gen_z = std::mt19937(rd_z());
+
+  d_x = std::normal_distribution<>(0, noise_x);
+  d_y = std::normal_distribution<>(0, noise_y);
+  d_z = std::normal_distribution<>(0, noise_z);
 
   //need to know current yaw angle of the robot if acc vector is expressed in world frame
   odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 1, &AccCommandConverterNode::OdometryCallback, this);
@@ -132,17 +143,27 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
     if (use_vehicle_frame)
     {
       convertGoal2VehicleFrame(goal_odometry, odometry, &goal_in_vehicle_frame);
-      rate_thrust_cmd_tmp.thrust.x = Kp_x_ * goal_in_vehicle_frame.pose.pose.position.x;
-      rate_thrust_cmd_tmp.thrust.y = Kp_y_ * goal_in_vehicle_frame.pose.pose.position.y;
-      rate_thrust_cmd_tmp.thrust.z = Kp_z_ * goal_in_vehicle_frame.pose.pose.position.z;
+      rate_thrust_cmd_tmp.thrust.x = Kp_x * goal_in_vehicle_frame.pose.pose.position.x;
+      rate_thrust_cmd_tmp.thrust.y = Kp_y * goal_in_vehicle_frame.pose.pose.position.y;
+      rate_thrust_cmd_tmp.thrust.z = Kp_z * goal_in_vehicle_frame.pose.pose.position.z;
 
     }
     else
     {
-      rate_thrust_cmd_tmp.thrust.x = Kp_x_ * (goal_odometry.position_W(0) - odometry.position_W(0));
-      rate_thrust_cmd_tmp.thrust.y = Kp_y_ * (goal_odometry.position_W(1) - odometry.position_W(1));
-      rate_thrust_cmd_tmp.thrust.z = Kp_z_ * (goal_odometry.position_W(2) - odometry.position_W(2));      
+      rate_thrust_cmd_tmp.thrust.x = Kp_x * (goal_odometry.position_W(0) - odometry.position_W(0));
+      rate_thrust_cmd_tmp.thrust.y = Kp_y * (goal_odometry.position_W(1) - odometry.position_W(1));
+      rate_thrust_cmd_tmp.thrust.z = Kp_z * (goal_odometry.position_W(2) - odometry.position_W(2));      
     }
+
+    // add random noise
+    double nx, ny, nz;
+    nx = d_x(gen_x);
+    ny = d_y(gen_y);
+    nz = d_y(gen_z);
+    //std::cout << "Noise:" << nx << "," << ny << "," << nz << std::endl;
+    rate_thrust_cmd_tmp.thrust.x += nx;
+    rate_thrust_cmd_tmp.thrust.y += ny;
+    rate_thrust_cmd_tmp.thrust.z += nz;
 
     rate_thrust_cmd_tmp.angular_rates.x = 0.0;
     rate_thrust_cmd_tmp.angular_rates.y = 0.0;
@@ -200,16 +221,16 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
         }
       }
 
-      double yaw_rate_cmd = K_yaw_ * yaw_error; // feed-forward yaw_rate cmd
+      double yaw_rate_cmd = K_yaw * yaw_error; // feed-forward yaw_rate cmd
 
-      if (yaw_rate_cmd > yaw_rate_limit_)
+      if (yaw_rate_cmd > yaw_rate_limit)
       {
-        yaw_rate_cmd = yaw_rate_limit_;
+        yaw_rate_cmd = yaw_rate_limit;
       }
 
-      if (yaw_rate_cmd < -yaw_rate_limit_)
+      if (yaw_rate_cmd < -yaw_rate_limit)
       {
-        yaw_rate_cmd = -yaw_rate_limit_;
+        yaw_rate_cmd = -yaw_rate_limit;
       }
       rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd; 
     }   

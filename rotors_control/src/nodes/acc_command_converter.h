@@ -4,6 +4,7 @@
 #include <boost/bind.hpp>
 #include <Eigen/Eigen>
 #include <stdio.h>
+#include <random>
 
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -35,10 +36,14 @@ class AccCommandConverterNode {
   mav_msgs::RateThrust rate_thrust_cmd;
   mav_msgs::EigenOdometry goal_odometry;
   std::string frame_id;
-  double K_yaw_;
-  double yaw_rate_limit_;
-  double Kp_x_, Kp_y_, Kp_z_;
- 
+  double K_yaw;
+  double yaw_rate_limit;
+  double Kp_x, Kp_y, Kp_z;
+  double noise_x, noise_y, noise_z;
+  std::random_device rd_x, rd_y, rd_z;
+  std::mt19937 gen_x, gen_y, gen_z;
+  std::normal_distribution<> d_x, d_y, d_z; 
+
   double mass;
 
   // subscribers
