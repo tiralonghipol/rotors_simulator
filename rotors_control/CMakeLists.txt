@@ -10,14 +10,27 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
   cmake_modules
+  message_generation
 )
 
 find_package(Eigen3 REQUIRED)
 
+add_message_files(
+  FILES
+  StateAction.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  nav_msgs
+  mav_msgs
+  std_msgs
+)
+
 catkin_package(
   INCLUDE_DIRS include ${Eigen3_INCLUDE_DIRS}
   LIBRARIES lee_position_controller roll_pitch_yawrate_thrust_controller
-  CATKIN_DEPENDS geometry_msgs mav_msgs nav_msgs roscpp sensor_msgs
+  CATKIN_DEPENDS geometry_msgs mav_msgs nav_msgs roscpp sensor_msgs message_runtime
   DEPENDS Eigen3
 )
 

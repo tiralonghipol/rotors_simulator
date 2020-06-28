@@ -1,12 +1,14 @@
 #include "acc_command_converter.h"
 
 #include "rotors_control/parameters_ros.h"
+#include "rotors_control/StateAction.h"
 
 namespace rotors_control {
 
 AccCommandConverterNode::AccCommandConverterNode() 
   : receive_first_odom(false),
-  receive_first_cmd(false)
+  receive_first_cmd(false),
+  receive_goal(false)
 {
   ros::NodeHandle nh;
 
@@ -15,23 +17,37 @@ AccCommandConverterNode::AccCommandConverterNode()
 
   cmd_roll_pitch_yawrate_thrust_pub_ = nh.advertise<mav_msgs::RollPitchYawrateThrust>(
       kDefaultCommandRollPitchYawrateThrustTopic, 1);
+  state_action_pub_ = nh.advertise<rotors_control::StateAction>(
+      "state_action", 1);
 
   ros::NodeHandle pnh("~");
   GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame); 
   GetRosParameter(pnh, "use_yaw_stabilize", true, &use_yaw_stabilize);
+  GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x_);
+  GetRosParameter(pnh, "Kp_y", 0.0, &Kp_y_);
+  GetRosParameter(pnh, "Kp_z", 0.0, &Kp_z_);   
   GetRosParameter(pnh, "K_yaw", 1.8, &K_yaw_); 
   GetRosParameter(pnh, "yaw_rate_limit", M_PI/4, &yaw_rate_limit_); 
   GetRosParameter(pnh, "mass", 1.0, &mass); 
   ROS_WARN_STREAM("Mass:" << mass);
+
+  rate_thrust_cmd.thrust.x = 0.0;
+  rate_thrust_cmd.thrust.y = 0.0;
+  rate_thrust_cmd.thrust.z = 0.0; // keep it on the ground
+  rate_thrust_cmd.angular_rates.x = 0.0;
+  rate_thrust_cmd.angular_rates.y = 0.0;
+  rate_thrust_cmd.angular_rates.z = 0.0;
+
   //need to know current yaw angle of the robot if acc vector is expressed in world frame
   odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 1, &AccCommandConverterNode::OdometryCallback, this);
+  goal_pose_sub_ = nh.subscribe("goal", 1, &AccCommandConverterNode::GoalPoseCallback, this);
 }
 
 AccCommandConverterNode::~AccCommandConverterNode() { }
 
 void AccCommandConverterNode::RateThrustCallback(
     const mav_msgs::RateThrustPtr& rate_thrust_msg) {
-  if ((!use_vehicle_frame) && (!receive_first_odom))
+  if (!receive_first_odom)
   {
     return;
   }
@@ -39,6 +55,65 @@ void AccCommandConverterNode::RateThrustCallback(
   receive_first_cmd = true;
 }
 
+// should be in a seperate node
+void AccCommandConverterNode::GoalPoseCallback(const geometry_msgs::Pose& goal_msg)
+{
+  convertGoal2WorldFrame(goal_msg, odometry, &goal_odometry);
+  receive_goal = true;
+  ROS_INFO_STREAM("Received goal: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
+  << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
+  ROS_INFO_STREAM("Odom in world: pos x " << odometry.position_W(0) << ",y " << odometry.position_W(1) << ",z " << odometry.position_W(2));
+  ROS_INFO_STREAM("Goal in world: pos x " << goal_odometry.position_W(0) << ",y " << goal_odometry.position_W(1) << ",z " << goal_odometry.position_W(2));
+}
+
+void AccCommandConverterNode::convertGoal2WorldFrame(const geometry_msgs::Pose& goal, const mav_msgs::EigenOdometry& robot_odom, 
+  mav_msgs::EigenOdometry *goal_in_world)
+{
+  Eigen::Vector3d robot_euler_angles;
+  robot_odom.getEulerAngles(&robot_euler_angles);
+  Eigen::Quaterniond goal_quat_in_world;
+  Eigen::Vector3d goal_pos_in_world;
+  if (use_vehicle_frame)
+  {
+    Eigen::Quaterniond goal_quat_in_vehicle = Eigen::Quaterniond(goal.orientation.w, goal.orientation.x, goal.orientation.y, goal.orientation.z);
+    Eigen::Vector3d goal_euler_angles;
+    mav_msgs::getEulerAnglesFromQuaternion(goal_quat_in_vehicle, &goal_euler_angles);
+    goal_quat_in_world = Eigen::AngleAxisd(goal_euler_angles(2) + robot_euler_angles(2), Eigen::Vector3d::UnitZ());
+    Eigen::Vector3d goal_pos_in_vehicle;
+    goal_pos_in_vehicle << goal.position.x, goal.position.y, goal.position.z;
+    goal_pos_in_world = Eigen::AngleAxisd(robot_euler_angles(2), Eigen::Vector3d::UnitZ()) * goal_pos_in_vehicle + robot_odom.position_W;
+  }
+  else
+  {
+    goal_quat_in_world = Eigen::Quaterniond(goal.orientation.w, goal.orientation.x, goal.orientation.y, goal.orientation.z);
+    goal_pos_in_world(0) = goal.position.x;
+    goal_pos_in_world(1) = goal.position.y;
+    goal_pos_in_world(2) = goal.position.z;
+  }
+  goal_in_world->position_W = goal_pos_in_world;
+  goal_in_world->orientation_W_B = goal_quat_in_world;
+}
+
+void AccCommandConverterNode::convertGoal2VehicleFrame(const mav_msgs::EigenOdometry& goal_odom, const mav_msgs::EigenOdometry& robot_odom,
+  nav_msgs::Odometry *goal_in_vehicle_frame)
+{
+  Eigen::Vector3d goal_euler_angles, robot_euler_angles;
+  goal_odom.getEulerAngles(&goal_euler_angles);
+  robot_odom.getEulerAngles(&robot_euler_angles);
+  Eigen::Quaterniond quat_VG;
+  quat_VG = Eigen::AngleAxisd(goal_euler_angles(2) - robot_euler_angles(2), Eigen::Vector3d::UnitZ());
+  Eigen::Vector3d pos_VG = Eigen::AngleAxisd(-robot_euler_angles(2), Eigen::Vector3d::UnitZ()) * (goal_odom.position_W - robot_odom.position_W);
+  
+  // TODO: update twist
+  goal_in_vehicle_frame->header.stamp = ros::Time::now();
+  goal_in_vehicle_frame->pose.pose.position.x = pos_VG(0);
+  goal_in_vehicle_frame->pose.pose.position.y = pos_VG(1);
+  goal_in_vehicle_frame->pose.pose.position.z = pos_VG(2); 
+  goal_in_vehicle_frame->pose.pose.orientation.x = quat_VG.x();
+  goal_in_vehicle_frame->pose.pose.orientation.y = quat_VG.y();
+  goal_in_vehicle_frame->pose.pose.orientation.z = quat_VG.z();
+  goal_in_vehicle_frame->pose.pose.orientation.w = quat_VG.w();
+}
 
 void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr& odometry_msg) {
 
@@ -49,7 +124,32 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
     receive_first_odom = true;
   }
   mav_msgs::eigenOdometryFromMsg(*odometry_msg, &odometry);
-  if (receive_first_cmd)
+  nav_msgs::Odometry goal_in_vehicle_frame;
+  if (receive_goal)
+  {
+    mav_msgs::RateThrust rate_thrust_cmd_tmp;
+    // calculate goal in vehicle frame
+    if (use_vehicle_frame)
+    {
+      convertGoal2VehicleFrame(goal_odometry, odometry, &goal_in_vehicle_frame);
+      rate_thrust_cmd_tmp.thrust.x = Kp_x_ * goal_in_vehicle_frame.pose.pose.position.x;
+      rate_thrust_cmd_tmp.thrust.y = Kp_y_ * goal_in_vehicle_frame.pose.pose.position.y;
+      rate_thrust_cmd_tmp.thrust.z = Kp_z_ * goal_in_vehicle_frame.pose.pose.position.z;
+
+    }
+    else
+    {
+      rate_thrust_cmd_tmp.thrust.x = Kp_x_ * (goal_odometry.position_W(0) - odometry.position_W(0));
+      rate_thrust_cmd_tmp.thrust.y = Kp_y_ * (goal_odometry.position_W(1) - odometry.position_W(1));
+      rate_thrust_cmd_tmp.thrust.z = Kp_z_ * (goal_odometry.position_W(2) - odometry.position_W(2));      
+    }
+
+    rate_thrust_cmd_tmp.angular_rates.x = 0.0;
+    rate_thrust_cmd_tmp.angular_rates.y = 0.0;
+    rate_thrust_cmd_tmp.angular_rates.z = 0.0;
+    rate_thrust_cmd = rate_thrust_cmd_tmp;
+  }
+  //if (receive_first_cmd)
   {
     mav_msgs::RateThrust reference = rate_thrust_cmd;
     mav_msgs::RollPitchYawrateThrustPtr rpyrate_thrust_cmd(new mav_msgs::RollPitchYawrateThrust);
@@ -131,7 +231,15 @@ void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr&
     rpyrate_thrust_cmd->header.frame_id = frame_id;
     rpyrate_thrust_cmd->header.stamp = ros::Time::now();
 
-    cmd_roll_pitch_yawrate_thrust_pub_.publish(rpyrate_thrust_cmd);   
+    cmd_roll_pitch_yawrate_thrust_pub_.publish(rpyrate_thrust_cmd); 
+
+    StateAction state_action_msg;
+    state_action_msg.header.stamp = ros::Time::now();
+    state_action_msg.robot_odom = *odometry_msg; 
+    state_action_msg.goal_odom = goal_in_vehicle_frame;  
+    state_action_msg.action = reference;
+    state_action_msg.use_vehicle_frame = use_vehicle_frame;
+    state_action_pub_.publish(state_action_msg);
   }
 }
 
