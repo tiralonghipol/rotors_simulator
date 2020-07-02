@@ -29,7 +29,7 @@ generate_messages(
 
 catkin_package(
   INCLUDE_DIRS include ${Eigen3_INCLUDE_DIRS}
-  LIBRARIES lee_position_controller roll_pitch_yawrate_thrust_controller
+  LIBRARIES lee_position_controller roll_pitch_yawrate_thrust_controller pid
   CATKIN_DEPENDS geometry_msgs mav_msgs nav_msgs roscpp sensor_msgs message_runtime
   DEPENDS Eigen3
 )
@@ -48,11 +48,18 @@ add_library(roll_pitch_yawrate_thrust_controller
   src/library/roll_pitch_yawrate_thrust_controller.cpp
 )
 
+add_library(pid
+  src/library/pid.cpp
+)
+
 target_link_libraries(lee_position_controller ${catkin_LIBRARIES})
 add_dependencies(lee_position_controller ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(roll_pitch_yawrate_thrust_controller ${catkin_LIBRARIES})
 add_dependencies(roll_pitch_yawrate_thrust_controller ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(pid ${catkin_LIBRARIES})
+add_dependencies(pid ${catkin_EXPORTED_TARGETS})
 
 add_executable(lee_position_controller_node src/nodes/lee_position_controller_node.cpp)
 add_dependencies(lee_position_controller_node ${catkin_EXPORTED_TARGETS})
@@ -67,7 +74,7 @@ target_link_libraries(roll_pitch_yawrate_thrust_controller_node
 
 add_executable(acc_command_converter src/nodes/acc_command_converter.cpp)
 add_dependencies(acc_command_converter ${catkin_EXPORTED_TARGETS})
-target_link_libraries(acc_command_converter ${catkin_LIBRARIES})
+target_link_libraries(acc_command_converter pid ${catkin_LIBRARIES})
 
 install(TARGETS lee_position_controller roll_pitch_yawrate_thrust_controller
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}

@@ -5,6 +5,8 @@
 #include <Eigen/Eigen>
 #include <stdio.h>
 #include <random>
+#include <deque>
+#include <time.h>
 
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -16,6 +18,7 @@
 
 #include "rotors_control/common.h"
 #include "rotors_control/roll_pitch_yawrate_thrust_controller.h"
+#include "rotors_control/pid.h"
 
 namespace rotors_control {
 
@@ -38,11 +41,18 @@ class AccCommandConverterNode {
   std::string frame_id;
   double K_yaw;
   double yaw_rate_limit;
-  double Kp_x, Kp_y, Kp_z;
+  double Kp_x, Ki_x, Kd_x, acc_x_max, alpha_x; 
+  double Kp_y, Ki_y, Kd_y, acc_y_max, alpha_y;
+  double Kp_z, Ki_z, Kd_z, acc_z_max, alpha_z;
+  double odom_dtime;
+  double eps_explore; 
   double noise_x, noise_y, noise_z;
   std::random_device rd_x, rd_y, rd_z;
   std::mt19937 gen_x, gen_y, gen_z;
   std::normal_distribution<> d_x, d_y, d_z; 
+  PID *pid_x;
+  PID *pid_y;
+  PID *pid_z;
 
   double mass;
 
