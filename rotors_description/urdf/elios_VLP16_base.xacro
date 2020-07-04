@@ -49,11 +49,17 @@
   </xacro:if>
 
   <!-- Os1-64 -->
-  <xacro:include filename="$(find lidar_description)/urdf/OS1-64.urdf.xacro"/>
+  <!-- <xacro:include filename="$(find lidar_description)/urdf/OS1-64.urdf.xacro"/>
   <OS1-64 parent="${namespace}/base_link" name="${namespace}/os1" topic="/os1_points" hz="10" samples="100">
     <origin xyz="0 0 -0.07" rpy="3.14 0.0 3.14" />
-  </OS1-64>
+  </OS1-64> -->
 
-
+  <!-- VLP16 -->
+  <xacro:arg name="gpu" default="false"/>
+  <xacro:property name="gpu" value="$(arg gpu)" />
+  <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
+  <VLP-16 parent="${namespace}/base_link" name="/velodyne" topic="/velodyne_points" hz="10" samples="440" gpu="${gpu}">
+    <origin xyz="0 0 0.04" rpy="0 0 0" />
+  </VLP-16>
 </robot>
 
