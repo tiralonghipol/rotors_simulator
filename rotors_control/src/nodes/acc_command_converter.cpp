@@ -90,8 +90,17 @@ namespace rotors_control
   }
 
   // should be in a seperate node
-  void AccCommandConverterNode::GoalPoseCallback(const geometry_msgs::Pose &goal_msg)
+  void AccCommandConverterNode::GoalPoseCallback(const geometry_msgs::Pose &goal)
   {
+    geometry_msgs::Pose goal_msg(goal);
+    if ((goal_msg.orientation.x == 0.0))
+    {
+      goal_msg.orientation.w = 1.0;
+    }   
+    if ((goal_msg.orientation.x == 0))
+    {
+      goal_msg.orientation.w = 1.0;
+    }    
     convertGoal2WorldFrame(goal_msg, odometry, &goal_odometry);
     Eigen::Vector3d goal_euler_angles;
     goal_odometry.getEulerAngles(&goal_euler_angles);
@@ -114,6 +123,7 @@ namespace rotors_control
     if (use_vehicle_frame)
     {
       Eigen::Quaterniond goal_quat_in_vehicle = Eigen::Quaterniond(goal.orientation.w, goal.orientation.x, goal.orientation.y, goal.orientation.z);
+      goal_quat_in_vehicle = goal_quat_in_vehicle.normalized();
       Eigen::Vector3d goal_euler_angles;
       mav_msgs::getEulerAnglesFromQuaternion(goal_quat_in_vehicle, &goal_euler_angles);
       goal_quat_in_world = Eigen::AngleAxisd(goal_euler_angles(2) + robot_euler_angles(2), Eigen::Vector3d::UnitZ());
@@ -124,6 +134,7 @@ namespace rotors_control
     else
     {
       goal_quat_in_world = Eigen::Quaterniond(goal.orientation.w, goal.orientation.x, goal.orientation.y, goal.orientation.z);
+      goal_quat_in_world = goal_quat_in_world.normalized();
       goal_pos_in_world(0) = goal.position.x;
       goal_pos_in_world(1) = goal.position.y;
       goal_pos_in_world(2) = goal.position.z;
@@ -195,9 +206,9 @@ namespace rotors_control
       }
       else
       {
-        rate_thrust_cmd_tmp.thrust.x = Kp_x * (goal_odometry.position_W(0) - odometry.position_W(0));
-        rate_thrust_cmd_tmp.thrust.y = Kp_y * (goal_odometry.position_W(1) - odometry.position_W(1));
-        rate_thrust_cmd_tmp.thrust.z = Kp_z * (goal_odometry.position_W(2) - odometry.position_W(2));
+        rate_thrust_cmd_tmp.thrust.x = pid_x->calculate(goal_odometry.position_W(0), odometry.position_W(0));
+        rate_thrust_cmd_tmp.thrust.y = pid_y->calculate(goal_odometry.position_W(1), odometry.position_W(1));
+        rate_thrust_cmd_tmp.thrust.z = pid_z->calculate(goal_odometry.position_W(2), odometry.position_W(2));
       }
 
       float random_num = (float)rand() / RAND_MAX;
