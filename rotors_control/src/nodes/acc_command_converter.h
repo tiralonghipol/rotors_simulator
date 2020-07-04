@@ -38,6 +38,7 @@ class AccCommandConverterNode {
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
   mav_msgs::EigenOdometry goal_odometry;
+  double goal_yaw;
   std::string frame_id;
   double K_yaw;
   double yaw_rate_limit;
