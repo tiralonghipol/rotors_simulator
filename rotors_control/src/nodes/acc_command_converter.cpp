@@ -9,7 +9,8 @@ namespace rotors_control
   AccCommandConverterNode::AccCommandConverterNode()
       : receive_first_odom(false),
         receive_thrust_cmd(false),
-        receive_goal(false)
+        receive_goal(false),
+        receive_goal_training(false)
   {
     ros::NodeHandle nh;
 
@@ -73,6 +74,7 @@ namespace rotors_control
     //need to know current yaw angle of the robot if acc vector is expressed in world frame
     odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 1, &AccCommandConverterNode::OdometryCallback, this);
     goal_pose_sub_ = nh.subscribe("goal", 1, &AccCommandConverterNode::GoalPoseCallback, this);
+    goal_training_pose_sub_ = nh.subscribe("goal_training", 1, &AccCommandConverterNode::GoalTrainingPoseCallback, this);
   }
 
   AccCommandConverterNode::~AccCommandConverterNode() {}
@@ -87,6 +89,7 @@ namespace rotors_control
     rate_thrust_cmd = *rate_thrust_msg;
     receive_thrust_cmd = true;
     receive_goal = false;
+    //receive_goal_training = false;
   }
 
   // should be in a seperate node
@@ -106,13 +109,39 @@ namespace rotors_control
     goal_odometry.getEulerAngles(&goal_euler_angles);
     goal_yaw = goal_euler_angles(2);   
     receive_goal = true;
+    receive_goal_training = false;
     ROS_INFO_STREAM("Received goal: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
                                             << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
     ROS_INFO_STREAM("Odom in world: pos x " << odometry.position_W(0) << ",y " << odometry.position_W(1) << ",z " << odometry.position_W(2));
     ROS_INFO_STREAM("Goal in world: pos x " << goal_odometry.position_W(0) << ",y " << goal_odometry.position_W(1) << ",z " << goal_odometry.position_W(2));
     ROS_INFO_STREAM("Goal yaw:" << goal_yaw * 180/M_PI << " deg");
+    ROS_INFO("**********");
   }
 
+  void AccCommandConverterNode::GoalTrainingPoseCallback(const geometry_msgs::Pose &goal)
+  {
+    geometry_msgs::Pose goal_msg(goal);
+    if ((goal_msg.orientation.x == 0.0))
+    {
+      goal_msg.orientation.w = 1.0;
+    }   
+    if ((goal_msg.orientation.x == 0))
+    {
+      goal_msg.orientation.w = 1.0;
+    }    
+    convertGoal2WorldFrame(goal_msg, odometry, &goal_training_odometry);
+    Eigen::Vector3d goal_euler_angles;
+    goal_training_odometry.getEulerAngles(&goal_euler_angles);
+    goal_training_yaw = goal_euler_angles(2);   
+    receive_goal_training = true;
+    receive_goal = false;
+    ROS_INFO_STREAM("Received goal_training: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
+                                            << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
+    ROS_INFO_STREAM("Odom in world: pos x " << odometry.position_W(0) << ",y " << odometry.position_W(1) << ",z " << odometry.position_W(2));
+    ROS_INFO_STREAM("Goal_training in world: pos x " << goal_training_odometry.position_W(0) << ",y " << goal_training_odometry.position_W(1) << ",z " << goal_training_odometry.position_W(2));
+    ROS_INFO_STREAM("Goal_training yaw:" << goal_training_yaw * 180/M_PI << " deg"); 
+    ROS_INFO("**********");   
+  }
   void AccCommandConverterNode::convertGoal2WorldFrame(const geometry_msgs::Pose &goal, const mav_msgs::EigenOdometry &robot_odom,
                                                        mav_msgs::EigenOdometry *goal_in_world)
   {
@@ -153,7 +182,6 @@ namespace rotors_control
     quat_VG = Eigen::AngleAxisd(goal_euler_angles(2) - robot_euler_angles(2), Eigen::Vector3d::UnitZ());
     Eigen::Vector3d pos_VG = Eigen::AngleAxisd(-robot_euler_angles(2), Eigen::Vector3d::UnitZ()) * (goal_odom.position_W - robot_odom.position_W);
 
-    // TODO: update twist
     goal_in_vehicle_frame->header.stamp = ros::Time::now();
     goal_in_vehicle_frame->pose.pose.position.x = pos_VG(0);
     goal_in_vehicle_frame->pose.pose.position.y = pos_VG(1);
@@ -162,6 +190,13 @@ namespace rotors_control
     goal_in_vehicle_frame->pose.pose.orientation.y = quat_VG.y();
     goal_in_vehicle_frame->pose.pose.orientation.z = quat_VG.z();
     goal_in_vehicle_frame->pose.pose.orientation.w = quat_VG.w();
+
+    goal_in_vehicle_frame->twist.twist.linear.x = -robot_odom.velocity_B(0);
+    goal_in_vehicle_frame->twist.twist.linear.y = -robot_odom.velocity_B(1);
+    goal_in_vehicle_frame->twist.twist.linear.z = -robot_odom.velocity_B(2);
+    goal_in_vehicle_frame->twist.twist.angular.x = -robot_odom.angular_velocity_B(0);
+    goal_in_vehicle_frame->twist.twist.angular.y = -robot_odom.angular_velocity_B(1);
+    goal_in_vehicle_frame->twist.twist.angular.z = -robot_odom.angular_velocity_B(2);
   }
 
   void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr &odometry_msg)
@@ -192,20 +227,21 @@ namespace rotors_control
       }
     }
     mav_msgs::eigenOdometryFromMsg(*odometry_msg, &odometry);
-    nav_msgs::Odometry goal_in_vehicle_frame;
+    nav_msgs::Odometry goal_in_approriate_frame;
     if (receive_goal)
     {
       mav_msgs::RateThrust rate_thrust_cmd_tmp;
       // calculate goal in vehicle frame
       if (use_vehicle_frame)
       {
-        convertGoal2VehicleFrame(goal_odometry, odometry, &goal_in_vehicle_frame);
-        rate_thrust_cmd_tmp.thrust.x = pid_x->calculate(0.0, -goal_in_vehicle_frame.pose.pose.position.x);
-        rate_thrust_cmd_tmp.thrust.y = pid_y->calculate(0.0, -goal_in_vehicle_frame.pose.pose.position.y);
-        rate_thrust_cmd_tmp.thrust.z = pid_z->calculate(0.0, -goal_in_vehicle_frame.pose.pose.position.z);
+        convertGoal2VehicleFrame(goal_odometry, odometry, &goal_in_approriate_frame);
+        rate_thrust_cmd_tmp.thrust.x = pid_x->calculate(0.0, -goal_in_approriate_frame.pose.pose.position.x);
+        rate_thrust_cmd_tmp.thrust.y = pid_y->calculate(0.0, -goal_in_approriate_frame.pose.pose.position.y);
+        rate_thrust_cmd_tmp.thrust.z = pid_z->calculate(0.0, -goal_in_approriate_frame.pose.pose.position.z);
       }
       else
       {
+        msgOdometryFromEigen(goal_odometry, &goal_in_approriate_frame);
         rate_thrust_cmd_tmp.thrust.x = pid_x->calculate(goal_odometry.position_W(0), odometry.position_W(0));
         rate_thrust_cmd_tmp.thrust.y = pid_y->calculate(goal_odometry.position_W(1), odometry.position_W(1));
         rate_thrust_cmd_tmp.thrust.z = pid_z->calculate(goal_odometry.position_W(2), odometry.position_W(2));
@@ -227,6 +263,18 @@ namespace rotors_control
       rate_thrust_cmd_tmp.angular_rates.y = 0.0;
       rate_thrust_cmd_tmp.angular_rates.z = 0.0;
       rate_thrust_cmd = rate_thrust_cmd_tmp;
+    }
+    else if (receive_goal_training)
+    {
+      // calculate goal in vehicle frame
+      if (use_vehicle_frame)
+      {
+        convertGoal2VehicleFrame(goal_training_odometry, odometry, &goal_in_approriate_frame);
+      }      
+      else
+      {
+        msgOdometryFromEigen(goal_training_odometry, &goal_in_approriate_frame);
+      }
     }
 
     mav_msgs::RateThrust reference = rate_thrust_cmd;
@@ -315,7 +363,7 @@ namespace rotors_control
 
     static mav_msgs::RateThrust previous_action = reference;
     static nav_msgs::Odometry previous_robot_odom = *odometry_msg;
-    static nav_msgs::Odometry previous_goal_odom = goal_in_vehicle_frame;
+    static nav_msgs::Odometry previous_goal_odom = goal_in_approriate_frame;
     static bool first_msg = true;
 
     if (first_msg)
@@ -329,14 +377,14 @@ namespace rotors_control
       state_action_msg.robot_odom = previous_robot_odom;
       state_action_msg.goal_odom = previous_goal_odom;
       state_action_msg.action = previous_action;
-      state_action_msg.next_goal_odom = goal_in_vehicle_frame;
+      state_action_msg.next_goal_odom = goal_in_approriate_frame;
       state_action_msg.use_vehicle_frame = use_vehicle_frame;
       state_action_msg.collide = false;
       state_action_pub_.publish(state_action_msg);
 
       previous_action = reference;
       previous_robot_odom = *odometry_msg;
-      previous_goal_odom = goal_in_vehicle_frame;
+      previous_goal_odom = goal_in_approriate_frame;
     }
   }
 

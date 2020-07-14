@@ -34,11 +34,12 @@ class AccCommandConverterNode {
   bool receive_first_odom;
   bool receive_thrust_cmd;
   bool receive_goal;
+  bool receive_goal_training;
   bool use_yaw_stabilize;
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
-  mav_msgs::EigenOdometry goal_odometry;
-  double goal_yaw;
+  mav_msgs::EigenOdometry goal_odometry, goal_training_odometry;
+  double goal_yaw, goal_training_yaw;
   std::string frame_id;
   double K_yaw;
   double yaw_rate_limit;
@@ -61,6 +62,7 @@ class AccCommandConverterNode {
   ros::Subscriber cmd_rate_thrust_sub_;
   ros::Subscriber odometry_sub_;
   ros::Subscriber goal_pose_sub_;
+  ros::Subscriber goal_training_pose_sub_;
 
   ros::Publisher cmd_roll_pitch_yawrate_thrust_pub_;
   ros::Publisher state_action_pub_;
@@ -70,6 +72,8 @@ class AccCommandConverterNode {
   void OdometryCallback(const nav_msgs::OdometryConstPtr& odometry_msg);
 
   void GoalPoseCallback(const geometry_msgs::Pose& goal_msg);
+
+  void GoalTrainingPoseCallback(const geometry_msgs::Pose &goal);
 
   void convertGoal2WorldFrame(const geometry_msgs::Pose& goal, const mav_msgs::EigenOdometry& robot_odom, mav_msgs::EigenOdometry *goal_in_world);
 
