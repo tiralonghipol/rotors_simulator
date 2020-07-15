@@ -24,7 +24,7 @@ namespace rotors_control
 
     ros::NodeHandle pnh("~");
     GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame);
-    GetRosParameter(pnh, "use_yaw_stabilize", true, &use_yaw_stabilize);
+    GetRosParameter(pnh, "use_yaw_stabilize", false, &use_yaw_stabilize);
 
     GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x);
     GetRosParameter(pnh, "Ki_x", 0.0, &Ki_x);
@@ -99,22 +99,22 @@ namespace rotors_control
     if ((goal_msg.orientation.x == 0.0))
     {
       goal_msg.orientation.w = 1.0;
-    }   
+    }
     if ((goal_msg.orientation.x == 0))
     {
       goal_msg.orientation.w = 1.0;
-    }    
+    }
     convertGoal2WorldFrame(goal_msg, odometry, &goal_odometry);
     Eigen::Vector3d goal_euler_angles;
     goal_odometry.getEulerAngles(&goal_euler_angles);
-    goal_yaw = goal_euler_angles(2);   
+    goal_yaw = goal_euler_angles(2);
     receive_goal = true;
     receive_goal_training = false;
     ROS_INFO_STREAM("Received goal: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
                                             << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
     ROS_INFO_STREAM("Odom in world: pos x " << odometry.position_W(0) << ",y " << odometry.position_W(1) << ",z " << odometry.position_W(2));
     ROS_INFO_STREAM("Goal in world: pos x " << goal_odometry.position_W(0) << ",y " << goal_odometry.position_W(1) << ",z " << goal_odometry.position_W(2));
-    ROS_INFO_STREAM("Goal yaw:" << goal_yaw * 180/M_PI << " deg");
+    ROS_INFO_STREAM("Goal yaw:" << goal_yaw * 180 / M_PI << " deg");
     ROS_INFO("**********");
   }
 
@@ -124,23 +124,23 @@ namespace rotors_control
     if ((goal_msg.orientation.x == 0.0))
     {
       goal_msg.orientation.w = 1.0;
-    }   
+    }
     if ((goal_msg.orientation.x == 0))
     {
       goal_msg.orientation.w = 1.0;
-    }    
+    }
     convertGoal2WorldFrame(goal_msg, odometry, &goal_training_odometry);
     Eigen::Vector3d goal_euler_angles;
     goal_training_odometry.getEulerAngles(&goal_euler_angles);
-    goal_training_yaw = goal_euler_angles(2);   
+    goal_training_yaw = goal_euler_angles(2);
     receive_goal_training = true;
     receive_goal = false;
     ROS_INFO_STREAM("Received goal_training: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
-                                            << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
+                                                     << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
     ROS_INFO_STREAM("Odom in world: pos x " << odometry.position_W(0) << ",y " << odometry.position_W(1) << ",z " << odometry.position_W(2));
     ROS_INFO_STREAM("Goal_training in world: pos x " << goal_training_odometry.position_W(0) << ",y " << goal_training_odometry.position_W(1) << ",z " << goal_training_odometry.position_W(2));
-    ROS_INFO_STREAM("Goal_training yaw:" << goal_training_yaw * 180/M_PI << " deg"); 
-    ROS_INFO("**********");   
+    ROS_INFO_STREAM("Goal_training yaw:" << goal_training_yaw * 180 / M_PI << " deg");
+    ROS_INFO("**********");
   }
   void AccCommandConverterNode::convertGoal2WorldFrame(const geometry_msgs::Pose &goal, const mav_msgs::EigenOdometry &robot_odom,
                                                        mav_msgs::EigenOdometry *goal_in_world)
@@ -343,7 +343,45 @@ namespace rotors_control
     }
     else if (receive_thrust_cmd)
     {
-      rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z;
+      if (use_yaw_stabilize)
+      {
+        double yaw_error = 0.0 - current_rpy(2); // keep yaw around 0 deg
+
+        if (std::abs(yaw_error) > M_PI)
+        {
+          if (yaw_error > 0.0)
+          {
+            while (yaw_error > M_PI)
+            {
+              yaw_error = yaw_error - 2.0 * M_PI;
+            }
+          }
+          else
+          {
+            while (yaw_error < -M_PI)
+            {
+              yaw_error = yaw_error + 2.0 * M_PI;
+            }
+          }
+        }
+
+        double yaw_rate_cmd = K_yaw * yaw_error;
+
+        if (yaw_rate_cmd > yaw_rate_limit)
+        {
+          yaw_rate_cmd = yaw_rate_limit;
+        }
+
+        if (yaw_rate_cmd < -yaw_rate_limit)
+        {
+          yaw_rate_cmd = -yaw_rate_limit;
+        }
+        rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd;
+      }
+      else
+      {
+        rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z;
+      }
     }
 
     rpyrate_thrust_cmd->thrust.x = 0;
