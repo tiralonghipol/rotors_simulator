@@ -3,6 +3,8 @@
 #include "rotors_control/parameters_ros.h"
 #include "rotors_control/StateAction.h"
 
+#include <tf/transform_broadcaster.h>
+
 namespace rotors_control
 {
 
@@ -411,7 +413,7 @@ namespace rotors_control
     else
     {
       StateAction state_action_msg;
-      state_action_msg.header.stamp = previous_robot_odom.header.stamp;
+      state_action_msg.header.stamp = ros::Time::now();//previous_robot_odom.header.stamp;
       state_action_msg.robot_odom = previous_robot_odom;
       state_action_msg.goal_odom = previous_goal_odom;
       state_action_msg.action = previous_action;
@@ -424,6 +426,15 @@ namespace rotors_control
       previous_robot_odom = *odometry_msg;
       previous_goal_odom = goal_in_approriate_frame;
     }
+
+    // publish tf for vehicle frame
+    static tf::TransformBroadcaster br;
+    tf::Transform transform;
+    transform.setOrigin( tf::Vector3(odometry.position_W(0), odometry.position_W(1), odometry.position_W(2)) );
+    tf::Quaternion q;
+    q.setRPY(0, 0, current_rpy(2));
+    transform.setRotation(q);
+    br.sendTransform(tf::StampedTransform(transform, odometry_msg->header.stamp, "world", "vehicle_frame"));    
   }
 
 } // namespace rotors_control
