@@ -77,6 +77,9 @@ namespace rotors_control
     odometry_sub_ = nh.subscribe(kDefaultOdometryTopic, 100, &AccCommandConverterNode::OdometryCallback, this);
     goal_pose_sub_ = nh.subscribe("goal", 1, &AccCommandConverterNode::GoalPoseCallback, this);
     goal_training_pose_sub_ = nh.subscribe("goal_training", 1, &AccCommandConverterNode::GoalTrainingPoseCallback, this);
+
+    vehicle_frame_id = ros::this_node::getNamespace();
+    ROS_WARN_STREAM("vehicle_frame_id:" << vehicle_frame_id);
   }
 
   AccCommandConverterNode::~AccCommandConverterNode() {}
@@ -434,7 +437,7 @@ namespace rotors_control
     tf::Quaternion q;
     q.setRPY(0, 0, current_rpy(2));
     transform.setRotation(q);
-    br.sendTransform(tf::StampedTransform(transform, odometry_msg->header.stamp, "world", "vehicle_frame"));    
+    br.sendTransform(tf::StampedTransform(transform, odometry_msg->header.stamp, "world", vehicle_frame_id));    
   }
 
 } // namespace rotors_control
