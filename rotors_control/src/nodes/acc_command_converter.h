@@ -71,7 +71,8 @@ class AccCommandConverterNode {
 
   void OdometryCallback(const nav_msgs::OdometryConstPtr& odometry_msg);
 
-  void GoalPoseCallback(const geometry_msgs::Pose& goal_msg);
+  // void GoalPoseCallback(const geometry_msgs::Pose& goal_msg);
+  void GoalPoseCallback(const geometry_msgs::PoseStamped& goal_msg);
 
   void GoalTrainingPoseCallback(const geometry_msgs::Pose &goal);
 
