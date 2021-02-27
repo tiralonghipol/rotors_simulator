@@ -101,11 +101,8 @@ namespace rotors_control
   void AccCommandConverterNode::GoalPoseCallback(const geometry_msgs::Pose &goal)
   {
     geometry_msgs::Pose goal_msg(goal);
-    if ((goal_msg.orientation.x == 0.0))
-    {
-      goal_msg.orientation.w = 1.0;
-    }
-    if ((goal_msg.orientation.x == 0))
+    if ((goal_msg.orientation.x == 0.0) && (goal_msg.orientation.y == 0.0)
+    && (goal_msg.orientation.z == 0.0) && (goal_msg.orientation.w == 0.0))
     {
       goal_msg.orientation.w = 1.0;
     }
@@ -126,11 +123,8 @@ namespace rotors_control
   void AccCommandConverterNode::GoalTrainingPoseCallback(const geometry_msgs::Pose &goal)
   {
     geometry_msgs::Pose goal_msg(goal);
-    if ((goal_msg.orientation.x == 0.0))
-    {
-      goal_msg.orientation.w = 1.0;
-    }
-    if ((goal_msg.orientation.x == 0))
+    if ((goal_msg.orientation.x == 0.0) && (goal_msg.orientation.y == 0.0)
+    && (goal_msg.orientation.z == 0.0) && (goal_msg.orientation.w == 0.0))
     {
       goal_msg.orientation.w = 1.0;
     }
