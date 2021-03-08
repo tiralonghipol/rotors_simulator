@@ -12,7 +12,8 @@ namespace rotors_control
       : receive_first_odom(false),
         receive_thrust_cmd(false),
         receive_goal(false),
-        receive_goal_training(false)
+        receive_goal_training(false),
+        receive_first_goal(false)
   {
     ros::NodeHandle nh;
 
@@ -27,6 +28,7 @@ namespace rotors_control
     ros::NodeHandle pnh("~");
     GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame);
     GetRosParameter(pnh, "use_yaw_stabilize", false, &use_yaw_stabilize);
+    GetRosParameter(pnh, "fixed_height", false, &fixed_height); // get latest height cmd from goal topic
 
     GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x);
     GetRosParameter(pnh, "Ki_x", 0.0, &Ki_x);
@@ -111,6 +113,7 @@ namespace rotors_control
     goal_odometry.getEulerAngles(&goal_euler_angles);
     goal_yaw = goal_euler_angles(2);
     receive_goal = true;
+    receive_first_goal = true;
     receive_goal_training = false;
     ROS_INFO_STREAM("Received goal: pos x " << goal_msg.position.x << ",y " << goal_msg.position.y << ",z " << goal_msg.position.z
                                             << ", orientation x " << goal_msg.orientation.x << ",y " << goal_msg.orientation.y << ",z " << goal_msg.orientation.z << ",w " << goal_msg.orientation.w);
@@ -276,6 +279,11 @@ namespace rotors_control
       }
     }
 
+    if (fixed_height && receive_thrust_cmd && receive_first_goal)
+    {
+      // modify z thrust to keep the same height
+      rate_thrust_cmd.thrust.z = pid_z->calculate(goal_odometry.position_W(2), odometry.position_W(2));
+    }
     mav_msgs::RateThrust reference = rate_thrust_cmd;
     mav_msgs::RollPitchYawrateThrustPtr rpyrate_thrust_cmd(new mav_msgs::RollPitchYawrateThrust);
     Eigen::Vector3d current_rpy;

@@ -35,7 +35,9 @@ class AccCommandConverterNode {
   bool receive_thrust_cmd;
   bool receive_goal;
   bool receive_goal_training;
+  bool receive_first_goal;
   bool use_yaw_stabilize;
+  bool fixed_height;
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
   mav_msgs::EigenOdometry goal_odometry, goal_training_odometry;
