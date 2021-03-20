@@ -80,11 +80,33 @@ namespace rotors_control
     goal_pose_sub_ = nh.subscribe("goal", 1, &AccCommandConverterNode::GoalPoseCallback, this);
     goal_training_pose_sub_ = nh.subscribe("goal_training", 1, &AccCommandConverterNode::GoalTrainingPoseCallback, this);
 
+    reset_service_ = nh.advertiseService("pid_reset", &AccCommandConverterNode::ResetCallback, this);
+
     vehicle_frame_id = ros::this_node::getNamespace();
     ROS_WARN_STREAM("vehicle_frame_id:" << vehicle_frame_id);
   }
 
   AccCommandConverterNode::~AccCommandConverterNode() {}
+
+  bool AccCommandConverterNode::ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response)
+  {
+    ROS_INFO("Reset serviced called");
+    pid_x->reset();
+    pid_y->reset();
+    pid_z->reset();
+    rate_thrust_cmd.thrust.x = 0.0;
+    rate_thrust_cmd.thrust.y = 0.0;
+    rate_thrust_cmd.thrust.z = 0.0;
+    rate_thrust_cmd.angular_rates.x = 0.0;
+    rate_thrust_cmd.angular_rates.y = 0.0;
+    rate_thrust_cmd.angular_rates.z = 0.0; 
+    receive_first_odom = false;
+    receive_thrust_cmd = false;
+    receive_goal = false;
+    receive_goal_training = false;
+    receive_first_goal = false;
+    return true;
+  }
 
   void AccCommandConverterNode::RateThrustCallback(
       const mav_msgs::RateThrustPtr &rate_thrust_msg)
@@ -266,7 +288,7 @@ namespace rotors_control
       rate_thrust_cmd_tmp.angular_rates.z = 0.0;
       rate_thrust_cmd = rate_thrust_cmd_tmp;
     }
-    else if (receive_goal_training)
+    else if (receive_goal_training) // receive goal but don't execute
     {
       // calculate goal in vehicle frame
       if (use_vehicle_frame)

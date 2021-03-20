@@ -15,6 +15,7 @@
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <ros/callback_queue.h>
+#include <std_srvs/Empty.h>
 
 #include "rotors_control/common.h"
 #include "rotors_control/roll_pitch_yawrate_thrust_controller.h"
@@ -69,6 +70,8 @@ class AccCommandConverterNode {
   ros::Publisher cmd_roll_pitch_yawrate_thrust_pub_;
   ros::Publisher state_action_pub_;
 
+  ros::ServiceServer reset_service_;
+
   void RateThrustCallback(const mav_msgs::RateThrustPtr& rate_thrust_msg);
 
   void OdometryCallback(const nav_msgs::OdometryConstPtr& odometry_msg);
@@ -81,6 +84,8 @@ class AccCommandConverterNode {
 
   void convertGoal2VehicleFrame(const mav_msgs::EigenOdometry& goal_odom, const mav_msgs::EigenOdometry& robot_odom,
     nav_msgs::Odometry *goal_in_vehicle_frame);  
+
+  bool ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 };
 }
 
