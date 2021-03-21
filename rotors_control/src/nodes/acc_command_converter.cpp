@@ -100,7 +100,7 @@ namespace rotors_control
     rate_thrust_cmd.angular_rates.x = 0.0;
     rate_thrust_cmd.angular_rates.y = 0.0;
     rate_thrust_cmd.angular_rates.z = 0.0; 
-    receive_first_odom = false;
+    //receive_first_odom = false;
     receive_thrust_cmd = false;
     receive_goal = false;
     receive_goal_training = false;
