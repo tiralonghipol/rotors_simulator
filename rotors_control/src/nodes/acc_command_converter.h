@@ -39,6 +39,7 @@ class AccCommandConverterNode {
   bool receive_first_goal;
   bool use_yaw_stabilize;
   bool fixed_height;
+  bool swap_yaw_rate;
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
   mav_msgs::EigenOdometry goal_odometry, goal_training_odometry;
@@ -80,12 +81,14 @@ class AccCommandConverterNode {
 
   void GoalTrainingPoseCallback(const geometry_msgs::Pose &goal);
 
+  bool ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+
   void convertGoal2WorldFrame(const geometry_msgs::Pose& goal, const mav_msgs::EigenOdometry& robot_odom, mav_msgs::EigenOdometry *goal_in_world);
 
   void convertGoal2VehicleFrame(const mav_msgs::EigenOdometry& goal_odom, const mav_msgs::EigenOdometry& robot_odom,
     nav_msgs::Odometry *goal_in_vehicle_frame);  
 
-  bool ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
+  double calculateYawCtrl(double setpoint_yaw, double current_yaw);
 };
 }
 

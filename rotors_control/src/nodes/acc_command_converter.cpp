@@ -29,6 +29,7 @@ namespace rotors_control
     GetRosParameter(pnh, "use_vehicle_frame", true, &use_vehicle_frame);
     GetRosParameter(pnh, "use_yaw_stabilize", false, &use_yaw_stabilize);
     GetRosParameter(pnh, "fixed_height", false, &fixed_height); // get latest height cmd from goal topic
+    GetRosParameter(pnh, "swap_yaw_rate", false, &swap_yaw_rate); // use reference.angular_rates.z to store reference yaw angle
 
     GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x);
     GetRosParameter(pnh, "Ki_x", 0.0, &Ki_x);
@@ -223,6 +224,43 @@ namespace rotors_control
     goal_in_vehicle_frame->twist.twist.angular.z = -robot_odom.angular_velocity_B(2);
   }
 
+  double AccCommandConverterNode::calculateYawCtrl(double setpoint_yaw, double current_yaw)
+  {
+    double yaw_error = setpoint_yaw - current_yaw;
+
+    if (std::abs(yaw_error) > M_PI)
+    {
+      if (yaw_error > 0.0)
+      {
+        while (yaw_error > M_PI)
+        {
+          yaw_error = yaw_error - 2.0 * M_PI;
+        }
+      }
+      else
+      {
+        while (yaw_error < -M_PI)
+        {
+          yaw_error = yaw_error + 2.0 * M_PI;
+        }
+      }
+    }
+
+    double yaw_rate_cmd = K_yaw * yaw_error;
+
+    if (yaw_rate_cmd > yaw_rate_limit)
+    {
+      yaw_rate_cmd = yaw_rate_limit;
+    }
+
+    if (yaw_rate_cmd < -yaw_rate_limit)
+    {
+      yaw_rate_cmd = -yaw_rate_limit;
+    }
+
+    return yaw_rate_cmd;    
+  }
+
   void AccCommandConverterNode::OdometryCallback(const nav_msgs::OdometryConstPtr &odometry_msg)
   {
     ROS_INFO_ONCE("AccCommandConverter node got first odometry message.");
@@ -336,80 +374,27 @@ namespace rotors_control
     if (receive_goal)
     {
       Eigen::Vector3d goal_euler_angles;
-
-      double yaw_error = goal_yaw - current_rpy(2);
-
-      if (std::abs(yaw_error) > M_PI)
-      {
-        if (yaw_error > 0.0)
-        {
-          while (yaw_error > M_PI)
-          {
-            yaw_error = yaw_error - 2.0 * M_PI;
-          }
-        }
-        else
-        {
-          while (yaw_error < -M_PI)
-          {
-            yaw_error = yaw_error + 2.0 * M_PI;
-          }
-        }
-      }
-
-      double yaw_rate_cmd = K_yaw * yaw_error;
-
-      if (yaw_rate_cmd > yaw_rate_limit)
-      {
-        yaw_rate_cmd = yaw_rate_limit;
-      }
-
-      if (yaw_rate_cmd < -yaw_rate_limit)
-      {
-        yaw_rate_cmd = -yaw_rate_limit;
-      }
+      double yaw_rate_cmd = calculateYawCtrl(goal_yaw, current_rpy(2));
       rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd;
     }
     else if (receive_thrust_cmd)
     {
       if (use_yaw_stabilize)
       {
-        double yaw_error = 0.0 - current_rpy(2); // keep yaw around 0 deg
-
-        if (std::abs(yaw_error) > M_PI)
-        {
-          if (yaw_error > 0.0)
-          {
-            while (yaw_error > M_PI)
-            {
-              yaw_error = yaw_error - 2.0 * M_PI;
-            }
-          }
-          else
-          {
-            while (yaw_error < -M_PI)
-            {
-              yaw_error = yaw_error + 2.0 * M_PI;
-            }
-          }
-        }
-
-        double yaw_rate_cmd = K_yaw * yaw_error;
-
-        if (yaw_rate_cmd > yaw_rate_limit)
-        {
-          yaw_rate_cmd = yaw_rate_limit;
-        }
-
-        if (yaw_rate_cmd < -yaw_rate_limit)
-        {
-          yaw_rate_cmd = -yaw_rate_limit;
-        }
+        double yaw_rate_cmd = calculateYawCtrl(0.0, current_rpy(2));
         rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd;
       }
       else
       {
-        rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z;
+        if (swap_yaw_rate) // use reference.angular_rates.z to store reference yaw angle 
+        {
+          double yaw_rate_cmd = calculateYawCtrl(reference.angular_rates.z, current_rpy(2));
+          rpyrate_thrust_cmd->yaw_rate = yaw_rate_cmd;
+        }
+        else
+        {
+          rpyrate_thrust_cmd->yaw_rate = reference.angular_rates.z;
+        }
       }
     }
 
