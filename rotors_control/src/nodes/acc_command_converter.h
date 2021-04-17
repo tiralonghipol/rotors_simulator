@@ -10,6 +10,7 @@
 
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Twist.h>
 #include <mav_msgs/RollPitchYawrateThrust.h>
 #include <mav_msgs/RateThrust.h>
 #include <nav_msgs/Odometry.h>
@@ -37,12 +38,14 @@ class AccCommandConverterNode {
   bool receive_goal;
   bool receive_goal_training;
   bool receive_first_goal;
+  bool receive_vel_cmd;
   bool use_yaw_stabilize;
   bool fixed_height;
   bool swap_yaw_rate;
   mav_msgs::EigenOdometry odometry;
   mav_msgs::RateThrust rate_thrust_cmd;
   mav_msgs::EigenOdometry goal_odometry, goal_training_odometry;
+  geometry_msgs::Twist cmd_vel_V;
   double goal_yaw, goal_training_yaw;
   std::string frame_id, vehicle_frame_id;
   double K_yaw;
@@ -50,6 +53,9 @@ class AccCommandConverterNode {
   double Kp_x, Ki_x, Kd_x, acc_x_max, alpha_x; 
   double Kp_y, Ki_y, Kd_y, acc_y_max, alpha_y;
   double Kp_z, Ki_z, Kd_z, acc_z_max, alpha_z;
+  double Kp_vel_x, Ki_vel_x, Kd_vel_x, alpha_vel_x; 
+  double Kp_vel_y, Ki_vel_y, Kd_vel_y, alpha_vel_y; 
+  double Kp_vel_z, Ki_vel_z, Kd_vel_z, alpha_vel_z; 
   double odom_dtime;
   double eps_explore; 
   double noise_x, noise_y, noise_z;
@@ -59,6 +65,9 @@ class AccCommandConverterNode {
   PID *pid_x;
   PID *pid_y;
   PID *pid_z;
+  PID *pid_vel_x;
+  PID *pid_vel_y;
+  PID *pid_vel_z;
 
   double mass;
 
@@ -67,6 +76,7 @@ class AccCommandConverterNode {
   ros::Subscriber odometry_sub_;
   ros::Subscriber goal_pose_sub_;
   ros::Subscriber goal_training_pose_sub_;
+  ros::Subscriber cmd_velocity_sub_;
 
   ros::Publisher cmd_roll_pitch_yawrate_thrust_pub_;
   ros::Publisher state_action_pub_;
@@ -80,6 +90,8 @@ class AccCommandConverterNode {
   void GoalPoseCallback(const geometry_msgs::Pose& goal_msg);
 
   void GoalTrainingPoseCallback(const geometry_msgs::Pose &goal);
+
+  void CmdVelocityCallback(const geometry_msgs::Twist &cmd_vel);
 
   bool ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 
