@@ -8,7 +8,7 @@
 #                                               if BUILD_MAVLINK_INTERFACE_PLUGIN=TRUE.
 # NO_ROS                            bool    Build without any ROS dependencies.
 
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(rotors_gazebo_plugins)
 
 #
@@ -83,7 +83,7 @@ else()
 endif()
 
 # Specify C++11 standard
-add_definitions(-std=c++11)
+add_definitions(-std=c++14)
 
 # Provides a compiler flag notifying the preprocessor about
 # the MAVLink Interface plugin build status
@@ -140,6 +140,7 @@ find_package(Glog REQUIRED)
 link_directories(${GAZEBO_LIBRARY_DIRS})
 include_directories(${GAZEBO_INCLUDE_DIRS})
 include_directories(${OpenCV_INCLUDE_DIRS})
+message(WARNING RotosS_Gazebo_Plugin Opencv Dir: ${OpenCV_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 
