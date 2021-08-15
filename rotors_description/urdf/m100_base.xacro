@@ -62,7 +62,7 @@
   <xacro:arg name="gpu" default="false"/>
   <xacro:property name="gpu" value="$(arg gpu)" />
   <xacro:include filename="$(find lidar_description)/urdf/VLP-16.urdf.xacro"/>
-  <xacro:VLP-16 parent="${namespace}/base_link" name="${namespace}/velodyne" topic="velodyne_points" hz="10" samples="440" gpu="$(arg gpu)" collision_range="0.8">
+  <xacro:VLP-16 parent="${namespace}/base_link" name="${namespace}/velodyne" topic="velodyne_points" hz="10" samples="440" gpu="$(arg gpu)" collision_range="0.6" min_range="0.6">
     <origin xyz="0 0 0.04" rpy="0 0 0" />
   </xacro:VLP-16>
   <!-- <xacro:include filename="$(find velodyne_description)/urdf/VLP-16.urdf.xacro"/>
