@@ -138,7 +138,7 @@ namespace rotors_control
     {
       goal_msg.orientation.w = 1.0;
     }
-    convertGoal2WorldFrame(goal_msg, odometry, &goal_odometry);
+    convertGoal2WorldFrame(goal_msg, odometry, &goal_odometry, use_vehicle_frame);
     Eigen::Vector3d goal_euler_angles;
     goal_odometry.getEulerAngles(&goal_euler_angles);
     goal_yaw = goal_euler_angles(2);
@@ -162,7 +162,7 @@ namespace rotors_control
     {
       goal_msg.orientation.w = 1.0;
     }
-    convertGoal2WorldFrame(goal_msg, odometry, &goal_training_odometry);
+    convertGoal2WorldFrame(goal_msg, odometry, &goal_training_odometry, false); // goal_training from rotors_wrapper is already in world frame
     Eigen::Vector3d goal_euler_angles;
     goal_training_odometry.getEulerAngles(&goal_euler_angles);
     goal_training_yaw = goal_euler_angles(2);
@@ -215,7 +215,7 @@ namespace rotors_control
   // }
 
   void AccCommandConverterNode::convertGoal2WorldFrame(const geometry_msgs::Pose &goal, const mav_msgs::EigenOdometry &robot_odom,
-                                                       mav_msgs::EigenOdometry *goal_in_world)
+                                                       mav_msgs::EigenOdometry *goal_in_world, bool use_vehicle_frame)
   {
     Eigen::Vector3d robot_euler_angles;
     robot_odom.getEulerAngles(&robot_euler_angles);
@@ -382,14 +382,14 @@ namespace rotors_control
     else if (receive_goal_training) // receive goal but don't execute
     {
       // calculate goal in vehicle frame
-      if (use_vehicle_frame)
-      {
-        convertGoal2VehicleFrame(goal_training_odometry, odometry, &goal_in_approriate_frame);
-      }      
-      else
-      {
-        msgOdometryFromEigen(goal_training_odometry, &goal_in_approriate_frame);
-      }
+      // if (use_vehicle_frame)
+      // {
+      //   convertGoal2VehicleFrame(goal_training_odometry, odometry, &goal_in_approriate_frame);
+      // }      
+      // else
+      // {
+        msgOdometryFromEigen(goal_training_odometry, &goal_in_approriate_frame); // already in world frame
+      //}
     }
     else if (receive_vel_cmd)
     {

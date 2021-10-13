@@ -95,7 +95,7 @@ class AccCommandConverterNode {
 
   bool ResetCallback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
 
-  void convertGoal2WorldFrame(const geometry_msgs::Pose& goal, const mav_msgs::EigenOdometry& robot_odom, mav_msgs::EigenOdometry *goal_in_world);
+  void convertGoal2WorldFrame(const geometry_msgs::Pose& goal, const mav_msgs::EigenOdometry& robot_odom, mav_msgs::EigenOdometry *goal_in_world, bool use_vehicle_frame);
 
   void convertGoal2VehicleFrame(const mav_msgs::EigenOdometry& goal_odom, const mav_msgs::EigenOdometry& robot_odom,
     nav_msgs::Odometry *goal_in_vehicle_frame);  
