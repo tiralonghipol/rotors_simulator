@@ -28,7 +28,7 @@ class AccCommandConverterNode {
   ~AccCommandConverterNode();
 
  private:
-  static constexpr double kGravity = 9.8066;
+  inline static constexpr double kGravity = 9.8066;
 
   bool use_vehicle_frame;
   bool receive_first_odom;
