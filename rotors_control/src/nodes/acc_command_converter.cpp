@@ -315,7 +315,7 @@ namespace rotors_control
     double current_yaw = (use_vehicle_frame) ? 0.0 : current_rpy(2);
     Eigen::Vector3d thrust_sp;
     thrust_sp << reference.thrust.x, reference.thrust.y, reference.thrust.z;
-    thrust_sp = (thrust_sp + Eigen::Vector3d(0, 0, kGravity)) * mass;
+    thrust_sp = (thrust_sp + Eigen::Vector3d(0, 0, 9.81)) * mass;
     Eigen::Vector3d thrust_norm = thrust_sp.normalized();
 
     double cphi_stheta = thrust_norm(0) * cos(current_yaw) + thrust_norm(1) * sin(current_yaw);
