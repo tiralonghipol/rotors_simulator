@@ -35,20 +35,32 @@ namespace rotors_control
     GetRosParameter(pnh, "Kp_x", 0.0, &Kp_x);
     GetRosParameter(pnh, "Ki_x", 0.0, &Ki_x);
     GetRosParameter(pnh, "Kd_x", 0.0, &Kd_x);
+    GetRosParameter(pnh, "Kp_vel_x", 0.0, &Kp_vel_x);
+    GetRosParameter(pnh, "Ki_vel_x", 0.0, &Ki_vel_x);
+    GetRosParameter(pnh, "Kd_vel_x", 0.0, &Kd_vel_x);    
     GetRosParameter(pnh, "acc_x_max", 0.0, &acc_x_max);
     GetRosParameter(pnh, "alpha_x", 0.0, &alpha_x);
+    GetRosParameter(pnh, "alpha_vel_x", 0.0, &alpha_vel_x);
 
     GetRosParameter(pnh, "Kp_y", 0.0, &Kp_y);
     GetRosParameter(pnh, "Ki_y", 0.0, &Ki_y);
     GetRosParameter(pnh, "Kd_y", 0.0, &Kd_y);
+    GetRosParameter(pnh, "Kp_vel_y", 0.0, &Kp_vel_y);
+    GetRosParameter(pnh, "Ki_vel_y", 0.0, &Ki_vel_y);
+    GetRosParameter(pnh, "Kd_vel_y", 0.0, &Kd_vel_y);    
     GetRosParameter(pnh, "acc_y_max", 0.0, &acc_y_max);
     GetRosParameter(pnh, "alpha_y", 0.0, &alpha_y);
+    GetRosParameter(pnh, "alpha_vel_y", 0.0, &alpha_vel_y);
 
     GetRosParameter(pnh, "Kp_z", 0.0, &Kp_z);
     GetRosParameter(pnh, "Ki_z", 0.0, &Ki_z);
     GetRosParameter(pnh, "Kd_z", 0.0, &Kd_z);
+    GetRosParameter(pnh, "Kp_vel_z", 0.0, &Kp_vel_z);
+    GetRosParameter(pnh, "Ki_vel_z", 0.0, &Ki_vel_z);
+    GetRosParameter(pnh, "Kd_vel_z", 0.0, &Kd_vel_z);    
     GetRosParameter(pnh, "acc_z_max", 0.0, &acc_z_max);
     GetRosParameter(pnh, "alpha_z", 0.0, &alpha_z);
+    GetRosParameter(pnh, "alpha_vel_z", 0.0, &alpha_vel_z);
 
     GetRosParameter(pnh, "eps_explore", 0.0, &eps_explore);
 
@@ -328,9 +340,9 @@ namespace rotors_control
         pid_x = new PID(odom_dtime, acc_x_max, -acc_x_max, Kp_x, Kd_x, Ki_x, alpha_x);
         pid_y = new PID(odom_dtime, acc_y_max, -acc_y_max, Kp_y, Kd_y, Ki_y, alpha_y);
         pid_z = new PID(odom_dtime, acc_z_max, -acc_z_max, Kp_z, Kd_z, Ki_z, alpha_z);
-        pid_vel_x = new PID(odom_dtime, acc_x_max, -acc_x_max, Kd_x, 0.0, Kp_x, alpha_x);
-        pid_vel_y = new PID(odom_dtime, acc_y_max, -acc_y_max, Kd_y, 0.0, Kp_y, alpha_y);
-        pid_vel_z = new PID(odom_dtime, acc_z_max, -acc_z_max, Kd_z, 0.0, Kp_z, alpha_z);        
+        pid_vel_x = new PID(odom_dtime, acc_x_max, -acc_x_max, Kp_vel_x, Kd_vel_x, Ki_vel_x, alpha_vel_x);
+        pid_vel_y = new PID(odom_dtime, acc_y_max, -acc_y_max, Kp_vel_y, Kd_vel_y, Ki_vel_y, alpha_vel_y);
+        pid_vel_z = new PID(odom_dtime, acc_z_max, -acc_z_max, Kp_vel_z, Kd_vel_z, Ki_vel_z, alpha_vel_z);        
         receive_first_odom = true;
       }
       else
@@ -403,7 +415,10 @@ namespace rotors_control
         //ROS_INFO_STREAM("linear_vel_W: " << linear_vel_W.transpose());
         rate_thrust_cmd.thrust.x = pid_vel_x->calculate(cmd_vel_V.linear.x, linear_vel_V(0));
         rate_thrust_cmd.thrust.y = pid_vel_y->calculate(cmd_vel_V.linear.y, linear_vel_V(1));
-        // fixed height for now
+        if (!fixed_height)
+        {
+          rate_thrust_cmd.thrust.z = pid_vel_z->calculate(cmd_vel_V.linear.z, linear_vel_V(2));
+        }
       }
       else
       {
