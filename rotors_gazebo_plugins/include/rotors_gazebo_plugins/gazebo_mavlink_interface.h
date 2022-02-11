@@ -33,7 +33,7 @@
 #include <gazebo/common/Plugin.hh>
 #include <gazebo/gazebo.hh>
 #include <gazebo/physics/physics.hh>
-#include "gazebo/math/Vector3.hh"
+#include "ignition/math/Vector3.hh"
 #include "gazebo/transport/transport.hh"
 #include "gazebo/msgs/msgs.hh"
 #include "common/mavlink.h"     // Either provided by ROS or as CMake argument MAVLINK_HEADER_DIR
@@ -153,7 +153,16 @@ class GazeboMavlinkInterface : public ModelPlugin {
   void handle_message(mavlink_message_t *msg);
   void pollForMAVLinkMessages(double _dt, uint32_t _timeoutMs);
 
-  static const unsigned kNOutMax = 16;
+  static const size_t kNOutMax = 18u;
+
+  // Set the number of BLDC motors and tilting servos,
+  // if using flags to differentiate.
+  static const size_t kNumMotors = 12u;
+  static const size_t kNumServos = 6u;
+
+  static const u_int32_t kMotorSpeedFlag = 1;
+  static const u_int32_t kServoPositionFlag = 2;
+
 
   unsigned rotor_count_;
 
@@ -182,9 +191,9 @@ class GazeboMavlinkInterface : public ModelPlugin {
   double lon_rad_;
   void handle_control(double _dt);
 
-  math::Vector3 gravity_W_;
-  math::Vector3 velocity_prev_W_;
-  math::Vector3 mag_d_;
+  ignition::math::Vector3d gravity_W_;
+  ignition::math::Vector3d velocity_prev_W_;
+  ignition::math::Vector3d mag_d_;
 
   std::default_random_engine random_generator_;
   std::normal_distribution<float> standard_normal_distribution_;
