@@ -9,8 +9,6 @@ Changelog for package rotors_comm
 
 2.1.0 (2017-04-08)
 -----------
-* Return the origin of the gazebo coordinates in lat/long/alt as part of the octomap service response.
-* Add option to publish octomap in the ServiceCallback of the gazebo_octomap_plugin.
 * Adding ability to start and stop rosbag recording on command
 * Contributors: Fadri Furrer, Pavel, acfloria
 

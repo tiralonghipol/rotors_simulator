@@ -27,9 +27,6 @@
   <depend>geometry_msgs</depend>
   <depend>libgoogle-glog-dev</depend>
   <depend>mav_msgs</depend>
-  <depend>octomap_msgs</depend>
-  <depend>octomap_ros</depend>
-  <depend>octomap</depend>
   <depend>rosbag</depend>
   <depend>roscpp</depend>
   <depend>rotors_comm</depend>
